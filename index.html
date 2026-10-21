@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0d1321">
+<title>骰子伤害 · 精确概率计算器</title>
+<style>
+:root { color-scheme: dark; --bg:#0c1220; --panel:#161f30; --panel2:#1c2940; --line:#324059; --ink:#f1f5fa; --muted:#9daec2; --acc:#81c0fc; --acc2:#78e1cd; --warn:#ffb4a2; }
+* {box-sizing:border-box}
+body {margin:0; min-height:100vh; background:radial-gradient(ellipse 70% 35% at 95% -5%,#1c345b 0%,transparent 73%),var(--bg); color:var(--ink); font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; line-height:1.5}
+main{max-width:850px;margin:0 auto;padding:36px 22px 65px}
+.eyebrow{font-size:12px;letter-spacing:.18em;font-weight:700;color:var(--acc2);text-transform:uppercase}
+h1{font-size:clamp(27px,5vw,40px);margin:5px 0 10px;letter-spacing:-.035em}
+p{color:var(--muted);margin:0}
+.lead{font-size:15px;max-width:640px}
+.panel{background:rgba(22,31,48,.94);border:1px solid var(--line);border-radius:20px;padding:24px;margin-top:22px;box-shadow:0 12px 44px #00000020}
+label{display:block;font-weight:650;font-size:14px;margin-bottom:9px}
+.input-row{display:flex;gap:10px}
+input{min-width:0;width:100%;border-radius:12px;background:var(--bg);border:1px solid #40516a;color:white;padding:13px 15px;font-size:20px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:-.035em;outline:none}
+input:focus{border-color:var(--acc);box-shadow:0 0 0 3px #81c0fc22}
+button{background:var(--acc);border:0;border-radius:12px;color:#081626;font-weight:700;padding:11px 18px;cursor:pointer}
+button:focus-visible{outline:2px solid var(--acc2);outline-offset:3px}
+.examples{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chip{background:var(--panel2);border:1px solid var(--line);color:var(--muted);font:500 12px ui-monospace,monospace;border-radius:99px;padding:6px 11px}
+.chip:hover{color:#fff;border-color:var(--acc)}
+.error{color:var(--warn);font-size:13px;min-height:22px;margin-top:8px}
+.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.metric{background:var(--panel2);border:1px solid #2d3c53;border-radius:14px;padding:16px}
+.metric-label{color:var(--muted);font-size:13px}
+.metric-value{font-size:clamp(23px,3.4vw,31px);font-weight:750;letter-spacing:-.04em;margin-top:2px;line-height:1.25}
+.metric-coverage{font-size:12px;color:var(--acc2);margin-top:5px}
+.big-blue{color:var(--acc)}.big-green{color:var(--acc2)}
+.section-header{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin:0 0 14px}
+h2{margin:0;font-size:17px;letter-spacing:-.015em}.small{font-size:12px;color:var(--muted)}
+.chartbox{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:15px 10px 3px}
+#chart{display:block;width:100%;height:auto;overflow:visible}
+.key{display:flex;align-items:center;gap:15px;flex-wrap:wrap;margin-top:11px;font-size:12px;color:var(--muted)}
+.key-item{display:flex;align-items:center;gap:6px}.swatch{width:11px;height:11px;border-radius:2px;background:var(--acc2)}.swatch.gray{background:#527292}.swatch.line{width:18px;height:3px;background:var(--acc)}
+.hover-info{min-height:18px;font-size:12px;color:var(--acc);font-variant-numeric:tabular-nums;text-align:center}
+.detail{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:17px}
+.detail>div{border-top:1px solid var(--line);padding-top:10px}.detail .value{font-weight:650;font-size:18px}.detail .label{color:var(--muted);font-size:12px}
+.note{font-size:13px;color:var(--muted);margin-top:13px;line-height:1.7}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.95em;color:#b7e2ff}
+.footer{margin-top:24px;font-size:12px;color:var(--muted)}
+@media(max-width:540px){main{padding:24px 13px 44px}.panel{padding:17px;margin-top:16px}.input-row{flex-direction:column}.metrics{gap:8px}.metric{padding:12px}.detail{gap:7px}.detail .value{font-size:15px}}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">D&D · BG3 · Probability</div>
+  <h1>骰子伤害计算器</h1>
+  <p class="lead">输入如 <code>8d6+1+3d2+1d4-2d5</code> 的表达式，精确计算每个整数结果出现的概率、期望伤害及中央 80% 概率区间。无需网络连接。</p>
+  <div id="run-status" style="margin-top:14px;padding:12px 14px;background:#392a25;border:1px solid #805d3c;border-radius:10px;font-size:13px;color:#ffcd9b">此预览尚未启动 JavaScript。如果下面的计算按钮没有反应，请下载本 HTML 并在支持本地 JavaScript 的浏览器中打开；ChatGPT/文件快速预览可能禁止脚本运行。</div>
+  <section class="panel">
+    <label for="expression">伤害骰表达式</label>
+    <div class="input-row">
+      <input id="expression" type="text" spellcheck="false" autocomplete="off" value="8d6+1+3d2+1d4-2d5" aria-describedby="error">
+      <button id="calculate" type="button" disabled>计算</button>
+    </div>
+    <div class="examples">
+      <button type="button" class="chip" data-example="8d6+1+3d2+1d4-2d5">复杂组合</button>
+      <button type="button" class="chip" data-example="8d6">火球术</button>
+      <button type="button" class="chip" data-example="6d4+6">六颗魔法飞弹</button>
+      <button type="button" class="chip" data-example="2d8+4+4d8">重击＋至圣斩</button>
+    </div>
+    <div class="error" id="error" role="status"></div>
+  </section>
+  <section class="panel" id="result" aria-live="polite">
+    <div class="metrics">
+      <div class="metric"><div class="metric-label">期望伤害 · E[X]</div><div class="metric-value big-blue" id="mean">—</div><div class="metric-coverage" id="meanExact"></div></div>
+      <div class="metric"><div class="metric-label">中央 80% 概率区间</div><div class="metric-value big-green" id="interval">—</div><div class="metric-coverage" id="coverage"></div></div>
+    </div>
+    <div class="detail">
+      <div><div class="value" id="minMax">—</div><div class="label">最小值 – 最大值</div></div>
+      <div><div class="value" id="sd">—</div><div class="label">标准差</div></div>
+      <div><div class="value" id="shortest">—</div><div class="label">最短 ≥80% 区间</div></div>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="section-header"><h2>精确概率分布</h2><span class="small">鼠标／触控查看整数结果概率</span></div>
+    <div class="chartbox">
+      <svg id="chart" viewBox="0 0 740 274" role="img" aria-label="伤害整数概率分布及80%区间"></svg>
+      <div class="hover-info" id="hover-info">&nbsp;</div>
+    </div>
+    <div class="key">
+      <span class="key-item"><span class="swatch"></span> 中央 80% 区间内</span>
+      <span class="key-item"><span class="swatch gray"></span> 区间外</span>
+      <span class="key-item"><span class="swatch line"></span> 期望值</span>
+    </div>
+    <p class="note">这里的“80% confidence interval”是<strong style="color:var(--ink)">单次伤害的中央 80% 概率区间</strong>（第 10 百分位至第 90 百分位）。由于结果是离散整数，实际覆盖率通常略高于 80%；它不是对期望伤害的置信区间。</p>
+    <p class="note">每个 <code>dM</code> 假定为公平、独立的 M 面骰；<code>-2d5</code> 表示减去两颗独立 d5 的点数。支持整数常数、空格、大小写 D 和省略数量的 <code>d6</code>，不支持括号、优势／劣势、爆骰、取最大值及伤害抗性。</p>
+  </section>
+  <div class="footer">单文件本地工具 · 不依赖外部库 · 概率来自精确的组合数卷积（BigInt），而不是蒙特卡洛抽样</div>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const svgNS = 'http://www.w3.org/2000/svg';
+let last = null;
+
+function parse(expr) {
+  const s = expr.replace(/\s/g, '').toLowerCase();
+  if (!s || !/^[+-]?(?:\d*d\d+|\d+)(?:[+-](?:\d*d\d+|\d+))*$/.test(s)) {
+    throw new Error('格式错误：请使用 8d6+1+3d2-2d5 这样的写法。');
+  }
+  const terms = s.match(/[+-]?(?:\d*d\d+|\d+)/g);
+  let constant = 0, dice = [], span = 0, count = 0;
+  for (const token of terms) {
+    const sign = token[0] === '-' ? -1 : 1;
+    const body = /^[+-]/.test(token) ? token.slice(1) : token;
+    if (body.includes('d')) {
+      const [n, sides] = body.split('d');
+      const times = n === '' ? 1 : Number(n), faces = Number(sides);
+      if (!Number.isSafeInteger(times) || !Number.isSafeInteger(faces) || times < 1 || faces < 1) {
+        throw new Error('骰子数量和面数必须是正整数。');
+      }
+      count += times;
+      span += times * (faces - 1);
+      dice.push({sign, times, faces});
+    } else {
+      const v = Number(body);
+      if (!Number.isSafeInteger(v)) throw new Error('常数过大。');
+      constant += sign*v;
+    }
+  }
+  if (count > 600 || span > 18000 || !Number.isSafeInteger(constant)) {
+    throw new Error('表达式过大：目前最多支持 600 颗骰子、18,000 点取值跨度。');
+  }
+  return {constant,dice};
+}
+
+function compute(expr) {
+  const {constant,dice} = parse(expr);
+  let counts = [1n], min = constant, mean = constant, varSum = 0;
+  for (const {sign,times,faces} of dice) {
+    mean += sign * times * (faces+1)/2;
+    varSum += times * (faces*faces-1)/12;
+    for (let r=0;r<times;r++) {
+      const oldLength=counts.length, newLength=oldLength+faces-1;
+      const next=new Array(newLength);
+      let running=0n;
+      for (let j=0;j<newLength;j++) {
+        if (j<oldLength) running+=counts[j];
+        if (j>=faces) running-=counts[j-faces];
+        next[j]=running;
+      }
+      counts=next;
+      min+=(sign===1 ? 1 : -faces);
+    }
+  }
+  const total = counts.reduce((a,b)=>a+b,0n);
+  let cum=0n, low=null, high=null;
+  for (let i=0;i<counts.length;i++) {
+    cum+=counts[i];
+    if (low===null && cum*10n>=total) low=min+i;
+    if (high===null && cum*10n>=9n*total) {high=min+i;break;}
+  }
+  let cover=0n;
+  for (let i=low-min;i<=high-min;i++) cover+=counts[i];
+  const threshold=(total*4n+4n)/5n;
+  let j=0, included=0n, best=null;
+  for (let i=0;i<counts.length;i++) {
+    while(j<counts.length && included<threshold){included+=counts[j];j++;}
+    if(included>=threshold) {
+      const candidate={low:min+i,high:min+j-1,cover:included};
+      if(best===null || candidate.high-candidate.low < best.high-best.low) best=candidate;
+    }
+    included-=counts[i];
+  }
+  const prob = (n) => {
+    const bits=total.toString(2).length;
+    const shift=BigInt(Math.max(0,bits-52));
+    return Number(n >> shift) / Number(total >> shift);
+  };
+  return {counts,min,max:min+counts.length-1,mean,sd:Math.sqrt(varSum),low,high,coverage:prob(cover),short:best,
+    shortCoverage:prob(best.cover),prob};
+}
+function fmt(x, digits=3){return Number(x.toFixed(digits)).toLocaleString('zh-CN',{maximumFractionDigits:digits});}
+function el(tag,attrs,text){const n=document.createElementNS(svgNS,tag);for(const [k,v] of Object.entries(attrs||{}))n.setAttribute(k,v);if(text!==undefined)n.textContent=text;return n;}
+function draw(r){
+  const svg=$('chart');svg.replaceChildren();
+  const W=740,H=274,left=54,right=20,top=16,bottom=33;
+  const width=W-left-right,height=H-top-bottom, ybase=top+height;
+  const probs=r.counts.map(c=>r.prob(c));
+  const n=probs.length;
+  const maxP=Math.max(...probs,1e-10)*1.10;
+  const xidx=i=>left+(n===1?width/2:i/(n-1)*width);
+  const y=p=>ybase-p/maxP*height;
+  function line(x1,y1,x2,y2,color,dash=''){svg.appendChild(el('line',{x1,y1,x2,y2,stroke:color,'stroke-width':1,'stroke-dasharray':dash}));}
+  for(let i=0;i<=4;i++){
+    const v=maxP*i/4, yp=y(v);
+    line(left,yp,W-right,yp,'#344258','3,4');
+    svg.appendChild(el('text',{x:left-8,y:yp+4,fill:'#9daec2','font-size':11,'text-anchor':'end'},fmt(v*100,1)+'%'));
+  }
+  const xPoints=[];
+  // Use filled bars when discrete support is small; for larger supports, use two filled curves.
+  if(n<=95){
+    const barw=Math.max(1.5,width/(n+1)*.78);
+    for(let i=0;i<n;i++){
+      const px=xidx(i)-barw/2, py=y(probs[i]);
+      svg.appendChild(el('rect',{x:px,y:py,width:barw,height:Math.max(0,ybase-py),rx:1.3,fill:r.min+i>=r.low&&r.min+i<=r.high?'#78e1cd':'#527292',opacity:.92}));
+    }
+  } else {
+    const pts=(start,end)=>{let d=`M ${xidx(start)} ${ybase} `;for(let i=start;i<=end;i++)d+=`L ${xidx(i)} ${y(probs[i])} `;return d+`L ${xidx(end)} ${ybase} Z`;};
+    svg.appendChild(el('path',{d:pts(0,n-1),fill:'#527292',opacity:.7}));
+    const a=Math.max(0,r.low-r.min),b=Math.min(n-1,r.high-r.min);
+    svg.appendChild(el('path',{d:pts(a,b),fill:'#78e1cd',opacity:.92}));
+  }
+  const mx= n===1?xidx(0):left+Math.max(0,Math.min(1,(r.mean-r.min)/(r.max-r.min)))*width;
+  line(mx,top,mx,ybase,'#81c0fc','5,4');
+  function tick(value,label){const xi=n===1?xidx(0):left+(value-r.min)/(r.max-r.min)*width;svg.appendChild(el('text',{x:xi,y:H-10,fill:'#aab9cd','font-size':12,'text-anchor':'middle'},label));}
+  if(n===1)tick(r.min,String(r.min));
+  else {tick(r.min,String(r.min));tick(r.min+(r.max-r.min)/2,fmt((r.min+r.max)/2,0));tick(r.max,String(r.max));}
+  const guide = el('line',{y1:top,y2:ybase,stroke:'#f8e1aa','stroke-width':1,'stroke-dasharray':'2,4',visibility:'hidden'});
+  svg.appendChild(guide);
+  const hit = el('rect',{x:left,y:top,width,height,fill:'transparent',style:'cursor:crosshair'});
+  svg.appendChild(hit);
+  function onPointer(e){
+    const rect=svg.getBoundingClientRect();
+    const px=(e.clientX-rect.left)/rect.width*W;
+    const i=Math.max(0,Math.min(n-1,Math.round((px-left)/width*(n-1))));
+    const x=xidx(i);
+    guide.setAttribute('x1',x);guide.setAttribute('x2',x);guide.setAttribute('visibility','visible');
+    $('hover-info').textContent=`伤害 ${r.min+i}：概率 ${fmt(probs[i]*100,4)}%`;
+  }
+  hit.addEventListener('pointermove',onPointer);
+  hit.addEventListener('pointerdown',onPointer);
+  hit.addEventListener('pointerleave',()=>{guide.setAttribute('visibility','hidden');$('hover-info').innerHTML='&nbsp;'});
+}
+function update(){
+  try {
+    const r=compute($('expression').value);
+    last=r;
+    $('error').textContent='';
+    $('mean').textContent=fmt(r.mean,4);
+    $('meanExact').textContent='精确概率模型 · 非模拟抽样';
+    $('interval').textContent=`${r.low} – ${r.high}`;
+    $('coverage').textContent=`实际覆盖 ${fmt(r.coverage*100,3)}%`;
+    $('minMax').textContent=`${r.min} – ${r.max}`;
+    $('sd').textContent=fmt(r.sd,4);
+    $('shortest').textContent=`${r.short.low} – ${r.short.high}`;
+    draw(r);
+  }catch(e){$('error').textContent=e.message;}
+}
+$('calculate').disabled=false;
+$('run-status').textContent='计算器已启动：可点击计算，或直接更改表达式自动计算。';
+$('run-status').style.cssText='margin-top:14px;padding:10px 14px;background:#14392f;border:1px solid #226f5d;border-radius:10px;font-size:13px;color:#9bf4d3';
+$('calculate').addEventListener('click',update);
+$('expression').addEventListener('input',update);
+$('expression').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();update();}});
+for(const b of document.querySelectorAll('[data-example]')) b.addEventListener('click',()=>{$('expression').value=b.dataset.example;update();});
+update();
+</script>
+</body>
+</html>
